@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hesabı Sil</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            color: #666;
+        }
+        .form-container {
+            margin-top: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        input {
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #d9534f;
+            border: none;
+            cursor: pointer;
+        }
+        .message {
+            margin-top: 20px;
+            color: #333;
+            font-size: 18px;
+        }
+        /* İlerleme çubuğu stili */
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar-fill {
+            height: 20px;
+            width: 0%;
+            background-color: #d9534f;
+            border-radius: 5px;
+            transition: width 0.4s;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hesabınızı Silin</h1>
+    <p>Hesabınızı silmek için lütfen kullanıcı adınızı ve şifrenizi girin. Bu işlem geri alınamaz ve tüm verileriniz kalıcı olarak silinecektir.</p>
+
+    <div class="form-container">
+        <form id="deleteAccountForm">
+            <label for="username">Kullanıcı Adı:</label>
+            <input type="text" id="username" name="username" required>
+
+            <label for="password">Şifre:</label>
+            <input type="password" id="password" name="password" required>
+
+            <button type="submit">Hesabı Sil</button>
+        </form>
+    </div>
+
+    <!-- İlerleme çubuğu -->
+    <div class="progress-bar" id="progressBar">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <script>
+        document.getElementById('deleteAccountForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('message');
+            const progressBar = document.getElementById('progressBar');
+            const progressBarFill = document.getElementById('progressBarFill');
+
+            // Mesaj ve ilerleme çubuğunu sıfırla
+            messageDiv.textContent = "";
+            progressBar.style.display = "block";
+            progressBarFill.style.width = "20%";  // İlk ilerleme
+
+            try {
+                // Adım 1: Erişim tokenı almak için /signin isteği gönder
+                progressBarFill.style.width = "40%";  // İlerleme güncelleme
+                const authResponse = await fetch('http://54.224.2.110:8000/api/users/signin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!authResponse.ok) {
+                    messageDiv.textContent = "Kimlik doğrulama başarısız. Lütfen kullanıcı adınızı ve şifrenizi kontrol edin.";
+                    messageDiv.style.color = "red";
+                    progressBar.style.display = "none";
+                    return;
+                }
+
+                progressBarFill.style.width = "60%";  // İlerleme güncelleme
+                const authData = await authResponse.json();
+                const accessToken = authData.access_token;
+
+                // Adım 2: Erişim tokenı ile DELETE isteği gönder
+                progressBarFill.style.width = "80%";  // İlerleme güncelleme
+                const deleteResponse = await fetch('http://54.224.2.110:8000/api/users/delete', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ username })
+                });
+
+                if (deleteResponse.ok) {
+                    messageDiv.textContent = "Hesabınız başarıyla silindi. Tüm verileriniz kalıcı olarak silindi.";
+                    messageDiv.style.color = "green";
+                    progressBarFill.style.width = "100%";  // Tamamlanma
+                } else if (deleteResponse.status === 401) {
+                    messageDiv.textContent = "Yetkisiz: Hesabınızı silmek için giriş yapmalısınız.";
+                    messageDiv.style.color = "red";
+                    progressBar.style.display = "none";
+                } else if (deleteResponse.status === 403) {
+                    messageDiv.textContent = "Erişim engellendi: Bu hesabı silme yetkiniz yok.";
+                    messageDiv.style.color = "red";
+                    progressBar.style.display = "none";
+                } else {
+                    const errorData = await deleteResponse.json();
+                    messageDiv.textContent = `Hata: ${errorData.detail || "Hesap silinemedi"}`;
+                    messageDiv.style.color = "red";
+                    progressBar.style.display = "none";
+                }
+            } catch (error) {
+                messageDiv.textContent = `Hata: ${error.message}`;
+                messageDiv.style.color = "red";
+                progressBar.style.display = "none";
+            }
+        });
+    </script>
+</body>
+</html>
